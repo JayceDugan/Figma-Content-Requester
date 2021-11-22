@@ -2,49 +2,56 @@ import * as React from 'react';
 import '../styles/ui.css';
 import 'figma-plugin-ds/dist/figma-plugin-ds.css'
 import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
+import { useTheme } from '@mui/material/styles'
+import Box from '@mui/material/Box'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
+import Typography from '@mui/material/Typography'
+import HistoryView from '../views/History'
+import SearchView from '../views/Search'
+import SwipeableViews from 'react-swipeable-views'
+import PropTypes from 'prop-types'
 
 declare function require(path: string): any;
 
+function TabPanel(props) {
+  const {children, value, index, ...other} = props
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`full-width-tabpanel-${index}`}
+      aria-labelledby={`full-width-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 3 }}>
+          <Typography variant="body1" component={'span'}>{ children }</Typography>
+        </Box>
+      )}
+    </div>
+  )
+}
+
+TabPanel.propTypes = {
+  children: PropTypes.node,
+  index: PropTypes.number.isRequired,
+  value: PropTypes.number.isRequired
+};
+
+function a11yProps(index) {
+  return {
+    id: `full-width-tab-${index}`,
+    'aria-controls': `full-width-tabpanel-${index}`
+  }
+}
+
 const App = ({}) => {
-  const textbox = React.useRef<HTMLInputElement>(undefined);
-  const [content, setContent] = React.useState([])
-  const [loading, setLoading] = React.useState(false)
-
-  const countRef = React.useCallback((element: HTMLInputElement) => {
-    textbox.current = element;
-  }, []);
-
-  const onCreate = () => {
-    loadContent(textbox.current.value)
-  };
-
-  const checkAssignContent = (content) => {
-    parent.postMessage({pluginMessage: {type: 'assign-content', content}}, '*');
-  }
-
-  const loadContent = (url) => {
-    setLoading(true)
-    const request = new XMLHttpRequest();
-
-    request.open('GET', 'https://cors.bridged.cc/'.concat(url));
-    request.responseType = 'text';
-    request.onload = () => {
-      if (request.status === 200) {
-        const parser = new DOMParser();
-        const parsed = parser.parseFromString(request.response, 'text/html');
-        const headingsNodeList = parsed.documentElement.querySelectorAll('h1, h2, h3, h4, h5, h6');
-        const contentNodeList = parsed.documentElement.querySelectorAll('p');
-        const nodeList = [...headingsNodeList, ...contentNodeList];
-        const textContent = Array.prototype.map.call(nodeList, (item) => item.textContent);
-
-        setContent(textContent)
-      }
-
-      setLoading(false)
-    };
-
-    request.send();
-  }
+  const [value, setValue] = React.useState(0)
+  const [history, setHistory] = React.useState([])
+  const [searchValue, setSearchValue] = React.useState('')
+  const theme = useTheme()
 
   React.useEffect(() => {
     // This is how we read messages sent from the plugin controller
@@ -55,32 +62,44 @@ const App = ({}) => {
     };
   }, []);
 
+  function handleChange(event, value) {
+    setValue(value)
+  }
+
+  function addToHistory(url) {
+    if (!history.includes(url)) setHistory([...history, url])
+  }
+
+  function startSearch(url) {
+    setValue(0)
+    setSearchValue(url)
+  }
+
   return (
-      <div className="pr-xsmall pl-xsmall">
-        <div className='flex row align-items-end'>
-          <div className='input flex-grow mr-xsmall'>
-            <label className="label">URL</label>
-            <input
-              ref={countRef}
-              placeholder="https://wwww.example.com"
-              className='input__field'
-            />
-          </div>
-          <button
-              id='create'
-              className="button button--primary"
-              onClick={onCreate}
-              disabled={loading}
-          >
-            { loading ? 'Loading...' : 'Request' }
-          </button>
-        </div>
-        <div className="content">
-          <ul style={{ padding: 0 }}>
-            { content.map(content => ( <li key={content} className='type text-left mb-xxxsmall' onClick={() => checkAssignContent(content)}>{content}</li> ))}
-          </ul>
-        </div>
-      </div>
+    <div>
+      <Box sx={{ padding: 1 }}>
+        <Tabs
+          value={value}
+          onChange={handleChange}
+          variant="fullWidth"
+        >
+          <Tab label="Search" { ...a11yProps(0) } />
+          <Tab label="History" { ...a11yProps(1) } />
+        </Tabs>
+        <SwipeableViews
+          axis={theme.direction === 'rtl' ? 'x-reverse' : 'x' }
+          index={value}
+          onChangeIndex={handleChange}
+        >
+          <TabPanel value={value} index={0}>
+            <SearchView searchValue={searchValue} addToHistory={addToHistory} history={history} />
+          </TabPanel>
+          <TabPanel value={value} index={1}>
+            <HistoryView history={history} startSearch={startSearch} />
+          </TabPanel>
+        </SwipeableViews>
+      </Box>
+    </div>
   );
 };
 
